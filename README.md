@@ -28,6 +28,8 @@ This is a *Slay the Spire 2* mechanics mod based on [TestTheSpireTemplateRitsu](
 
 This mod only corrects damage previews. It does not change the actual damage resolution performed by `CreatureCmd.Damage`.
 
+Supported game versions: 0.107.1 through 0.111.x. The mod adapts at runtime to the damage-hook signature used by the installed game.
+
 ## 公开 API / Public API
 
 `DamageDebuffPreviewApi.CalculateBySource<TSource>` 会按照来源及其内部命中的枚举顺序，使用同一个防御状态快照连续计算，并分别返回每个来源造成的生命损失。不同来源可以使用不同的 `ValueProp`、伤害者和卡牌上下文；计算不会消耗真实格挡、能力、遗物计数或生命。
@@ -141,6 +143,8 @@ Windows 上运行针对性战斗测试（脚本会隔离测试用 `APPDATA`，�
 非标准安装路径可传 `-Sts2Path "D:/path/to/Slay the Spire 2"`；使用其他过滤器可传 `-Filter "名称"`。
 
 ## 兼容性说明
+
+支持的游戏版本为 0.107.1 至 0.111.x。模组会在运行时适配游戏所使用的伤害钩子签名，因此同一个 DLL 可用于上述版本。
 
 通用计算器会自动执行所有标准伤害与生命损失钩子。对原版会在连续命中间消耗或累计状态的防御能力，项目内包含显式的无副作用模拟；第三方模组若实现了带内部状态的自定义防御钩子，可能需要在本项目中增加对应的预览状态适配。
 

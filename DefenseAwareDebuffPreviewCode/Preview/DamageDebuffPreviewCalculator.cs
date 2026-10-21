@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using DefenseAwareDebuffPreview.Api;
+using DefenseAwareDebuffPreview.Compatibility;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Relics;
@@ -73,7 +74,7 @@ public static class DamageDebuffPreviewCalculator
                     break;
                 }
 
-                decimal damage = Hook.ModifyDamage(
+                decimal damage = HookCompatibility.ModifyDamage(
                     runState,
                     combatState,
                     target,
