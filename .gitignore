@@ -1,0 +1,33 @@
+.godot/
+[Bb]in/
+[Oo]bj/
+/android/
+.git/
+.idea/
+.vs/
+publish/
+Properties/
+packages/
+artifacts/
+TestResults/
+coverage/
+
+# Generated STS2 mod payloads
+mod/
+mod-deps/
+DefenseAwareDebuffPreview.Tests/mod/
+DefenseAwareDebuffPreview.Tests/mod-deps/
+
+# Local dependency/source mirrors. Keep the directory marker tracked.
+local/*
+!local/.gitkeep
+!local/.gdignore
+
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+LocalSettings.props
+
+.DS_Store
+Thumbs.db

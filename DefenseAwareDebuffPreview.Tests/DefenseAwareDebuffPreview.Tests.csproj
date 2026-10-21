@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <Import Project="../Sts2PathDiscovery.props" />
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>true</ImplicitUsings>
+        <LangVersion>13.0</LangVersion>
+        <Nullable>enable</Nullable>
+        <AssemblyName>DefenseAwareDebuffPreview_tests</AssemblyName>
+        <RootNamespace>DefenseAwareDebuffPreview.Tests</RootNamespace>
+        <RestoreSources>$(MSBuildProjectDirectory)/../../TestTheSpire/artifacts/packages;https://api.nuget.org/v3/index.json;$(RestoreSources)</RestoreSources>
+        <Sts2MainModId>DefenseAwareDebuffPreview</Sts2MainModId>
+        <Sts2DisableOtherMods>true</Sts2DisableOtherMods>
+        <Sts2TestModAuthor>ModTemplate-StS2</Sts2TestModAuthor>
+        <Sts2TestModDescription>Headless combat smoke tests for DefenseAwareDebuffPreview.</Sts2TestModDescription>
+        <GodotProjectDir Condition="'$(GodotProjectDir)' == ''">$(MSBuildProjectDirectory)/..</GodotProjectDir>
+        <Sts2TestWorkRoot Condition="$([MSBuild]::IsOSPlatform('Windows'))">C:/tmp/sts2-combat-tests/$(AssemblyName)</Sts2TestWorkRoot>
+        <Sts2TestPayloadDir Condition="'$(Sts2TestWorkRoot)' != ''">$(Sts2TestWorkRoot)/payload/mod</Sts2TestPayloadDir>
+        <Sts2TestDependencyPayloadRoot Condition="'$(Sts2TestWorkRoot)' != ''">$(Sts2TestWorkRoot)/payload/deps</Sts2TestDependencyPayloadRoot>
+        <Sts2TestXdgDataHome Condition="'$(Sts2TestWorkRoot)' != ''">$(Sts2TestWorkRoot)</Sts2TestXdgDataHome>
+        <Sts2TestLogDir Condition="'$(Sts2TestWorkRoot)' != ''">$(Sts2TestWorkRoot)/logs</Sts2TestLogDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../DefenseAwareDebuffPreview.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="Exists('$(Sts2DataDir)')">
+        <Reference Include="0Harmony">
+            <HintPath>$(Sts2DataDir)/0Harmony.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="sts2">
+            <HintPath>$(Sts2DataDir)/sts2.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TestTheSpire" Version="0.1.7" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <CompilerVisibleProperty Include="GodotProjectDir" />
+    </ItemGroup>
+</Project>

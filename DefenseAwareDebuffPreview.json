@@ -1,0 +1,12 @@
+{
+  "id": "DefenseAwareDebuffPreview",
+  "name": "DefenseAwareDebuffPreview",
+  "author": "zwieb",
+  "description": "Makes damage-over-time debuff previews account for defensive effects and show the damage that will actually be dealt.",
+  "version": "v0.1.0",
+  "min_game_version": "0.111.0",
+  "has_pck": false,
+  "has_dll": true,
+  "dependencies": [],
+  "affects_gameplay": true
+}
