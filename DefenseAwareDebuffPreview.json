@@ -1,8 +1,8 @@
 {
   "id": "DefenseAwareDebuffPreview",
   "name": "DefenseAwareDebuffPreview",
-  "author": "zwieb",
-  "description": "Makes damage-over-time debuff previews account for defensive effects and show the damage that will actually be dealt.",
+  "author": "Sadaki",
+  "description": "让伤害类减益正确计算目标的防御能力，并显示真实伤害预览。 / Makes damage-dealing debuffs account for defensive effects and display their actual damage.",
   "version": "v0.1.0",
   "min_game_version": "0.111.0",
   "has_pck": false,

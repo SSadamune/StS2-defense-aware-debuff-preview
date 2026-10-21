@@ -1,6 +1,10 @@
 # Defense-Aware Debuff Preview
 
-一个基于 [TestTheSpireTemplateRitsu](https://github.com/shadowversebydmod/TestTheSpireTemplateRitsu) 创建的《杀戮尖塔 2》机制模组。
+作者 / Author: **Sadaki**
+
+## 中文简介
+
+这是一个基于 [TestTheSpireTemplateRitsu](https://github.com/shadowversebydmod/TestTheSpireTemplateRitsu) 创建的《杀戮尖塔 2》机制模组。它让伤害类减益的伤害预览正确计算目标的防御能力，从而显示真正会失去的生命值，而不只是减益的基础伤害。
 
 ## 功能
 
@@ -10,6 +14,19 @@
 - 提供公开的 `DamageDebuffPreviewCalculator.CalculateTotalHpLoss`，其他模组的伤害类 debuff 可复用同一套无副作用预览逻辑。
 
 该模组只修正预览，不修改 `CreatureCmd.Damage` 的实际伤害结算。
+
+## English Overview
+
+This is a *Slay the Spire 2* mechanics mod based on [TestTheSpireTemplateRitsu](https://github.com/shadowversebydmod/TestTheSpireTemplateRitsu). It makes damage-dealing debuff previews account for the target's defensive effects, so the UI shows the HP that will actually be lost instead of only the debuff's base damage.
+
+### Features
+
+- Fixes the vanilla Poison health-bar preview by running the target's standard damage and HP-loss modification hooks.
+- Accounts for defensive effects such as damage caps, Intangible, Buffer, Slippery, Hardened Shell, and Beating Remnant.
+- Simulates consumable defenses in the correct order for multi-hit Poison without changing powers, block, or HP.
+- Exposes `DamageDebuffPreviewCalculator.CalculateTotalHpLoss` so other mods can reuse the same side-effect-free preview logic.
+
+This mod only corrects damage previews. It does not change the actual damage resolution performed by `CreatureCmd.Damage`.
 
 ## 构建
 
