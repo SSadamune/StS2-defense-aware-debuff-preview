@@ -1,5 +1,5 @@
 param(
-    [string]$Filter = "PoisonDamagePreviewTests",
+    [string]$Filter = "",
     [string]$Sts2Path = "",
     [int]$TimeoutSeconds = 180
 )
@@ -51,7 +51,9 @@ $startInfo.Environment["APPDATA"] = $testRoot
 $startInfo.ArgumentList.Add("--headless")
 $startInfo.ArgumentList.Add("--force-steam=off")
 $startInfo.ArgumentList.Add("--sts2-test")
-$startInfo.ArgumentList.Add("--sts2-test-filter=$Filter")
+if (-not [string]::IsNullOrWhiteSpace($Filter)) {
+    $startInfo.ArgumentList.Add("--sts2-test-filter=$Filter")
+}
 
 $process = [System.Diagnostics.Process]::new()
 $process.StartInfo = $startInfo

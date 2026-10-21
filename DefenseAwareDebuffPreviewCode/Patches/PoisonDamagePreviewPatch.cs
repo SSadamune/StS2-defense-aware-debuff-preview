@@ -1,7 +1,7 @@
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
-using DefenseAwareDebuffPreview.Preview;
+using DefenseAwareDebuffPreview.Api;
 
 namespace DefenseAwareDebuffPreview.Patches;
 
@@ -27,7 +27,7 @@ internal static class PoisonDamagePreviewPatch
                 .Range(0, triggerCount)
                 .Select(index => (decimal)(__instance.Amount - index));
 
-            __result = DamageDebuffPreviewCalculator.CalculateTotalHpLoss(
+            __result = DamageDebuffPreviewApi.CalculateTotalHpLoss(
                 __instance.Owner,
                 hits,
                 ValueProp.Unblockable | ValueProp.Unpowered);

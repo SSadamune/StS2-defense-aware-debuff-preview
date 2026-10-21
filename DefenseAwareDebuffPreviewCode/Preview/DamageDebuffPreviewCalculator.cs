@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using DefenseAwareDebuffPreview.Api;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Relics;
@@ -24,75 +26,119 @@ public static class DamageDebuffPreviewCalculator
         CardModel? cardSource = null,
         CardPlay? cardPlay = null)
     {
+        var source = new object();
+        return CalculateBySourceCore(
+                target,
+                [new DamagePreviewSource<object>(
+                    source,
+                    baseDamagePerHit,
+                    props,
+                    dealer,
+                    cardSource,
+                    cardPlay)],
+                ReferenceEqualityComparer.Instance)
+            .TotalHpLoss;
+    }
+
+    internal static DamagePreviewResult<TSource> CalculateBySourceCore<TSource>(
+        Creature target,
+        IEnumerable<DamagePreviewSource<TSource>> sources,
+        IEqualityComparer<TSource>? sourceComparer)
+        where TSource : notnull
+    {
         ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(baseDamagePerHit);
+        ArgumentNullException.ThrowIfNull(sources);
 
         var combatState = target.CombatState
             ?? throw new InvalidOperationException("Damage previews require a creature in combat.");
         var runState = combatState.RunState;
         var listeners = runState.IterateHookListeners(combatState).ToList();
-        var defenses = new PreviewDefenseState(listeners, target, props, dealer, cardSource);
+        var defenses = new PreviewDefenseState(listeners, target);
         decimal remainingBlock = target.PetOwner?.Creature.Block ?? target.Block;
-        var remainingHp = target.CurrentHp;
-        var totalHpLoss = 0;
+        int remainingHp = target.CurrentHp;
+        int totalHpLoss = 0;
+        var hpLossBySource = new Dictionary<TSource, int>(sourceComparer);
 
-        foreach (decimal baseDamage in baseDamagePerHit)
+        foreach (DamagePreviewSource<TSource> source in sources)
         {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(source.Source);
+            ArgumentNullException.ThrowIfNull(source.BaseDamagePerHit);
+            hpLossBySource.TryAdd(source.Source, 0);
+
+            foreach (decimal baseDamage in source.BaseDamagePerHit)
+            {
+                if (remainingHp <= 0)
+                {
+                    break;
+                }
+
+                decimal damage = Hook.ModifyDamage(
+                    runState,
+                    combatState,
+                    target,
+                    source.Dealer,
+                    baseDamage,
+                    source.Props,
+                    source.CardSource,
+                    source.CardPlay,
+                    ModifyDamageHookType.All,
+                    CardPreviewMode.None,
+                    out _);
+
+                decimal blockedDamage = source.Props.HasFlag(ValueProp.Unblockable)
+                    ? 0m
+                    : Math.Min(remainingBlock, damage);
+                remainingBlock = Math.Max(0m, remainingBlock - (int)blockedDamage);
+
+                decimal hpLoss = Math.Max(damage - blockedDamage, 0m);
+                hpLoss = defenses.ModifyBeforeOsty(
+                    target,
+                    hpLoss,
+                    source.Props,
+                    source.Dealer,
+                    source.CardSource);
+
+                Creature hpLossTarget = Hook.ModifyUnblockedDamageTarget(
+                    combatState,
+                    target,
+                    hpLoss,
+                    source.Props,
+                    source.Dealer);
+
+                hpLoss = defenses.ModifyAfterOsty(
+                    hpLossTarget,
+                    hpLoss,
+                    source.Props,
+                    source.Dealer,
+                    source.CardSource);
+                int resolvedHpLoss = (int)Math.Clamp(hpLoss, 0m, 999999999m);
+
+                // NHealthBar previews HP that will disappear, not overkill damage.
+                int lossFromOriginalTarget = hpLossTarget == target
+                    ? Math.Min(resolvedHpLoss, remainingHp)
+                    : 0;
+
+                hpLossBySource[source.Source] += lossFromOriginalTarget;
+                totalHpLoss += lossFromOriginalTarget;
+                remainingHp -= lossFromOriginalTarget;
+                defenses.AfterHitResolved(hpLossTarget, resolvedHpLoss);
+            }
+
             if (remainingHp <= 0)
             {
                 break;
             }
-
-            decimal damage = Hook.ModifyDamage(
-                runState,
-                combatState,
-                target,
-                dealer,
-                baseDamage,
-                props,
-                cardSource,
-                cardPlay,
-                ModifyDamageHookType.All,
-                CardPreviewMode.None,
-                out _);
-
-            decimal blockedDamage = props.HasFlag(ValueProp.Unblockable)
-                ? 0m
-                : Math.Min(remainingBlock, damage);
-            remainingBlock = Math.Max(0m, remainingBlock - (int)blockedDamage);
-
-            decimal hpLoss = Math.Max(damage - blockedDamage, 0m);
-            hpLoss = defenses.ModifyBeforeOsty(target, hpLoss);
-
-            Creature hpLossTarget = Hook.ModifyUnblockedDamageTarget(
-                combatState,
-                target,
-                hpLoss,
-                props,
-                dealer);
-
-            hpLoss = defenses.ModifyAfterOsty(hpLossTarget, hpLoss);
-            int resolvedHpLoss = (int)Math.Clamp(hpLoss, 0m, 999999999m);
-
-            // NHealthBar previews HP that will disappear, not overkill damage.
-            int lossFromOriginalTarget = hpLossTarget == target
-                ? Math.Min(resolvedHpLoss, remainingHp)
-                : 0;
-
-            totalHpLoss += lossFromOriginalTarget;
-            remainingHp -= lossFromOriginalTarget;
-            defenses.AfterHitResolved(hpLossTarget, resolvedHpLoss);
         }
 
-        return totalHpLoss;
+        return new DamagePreviewResult<TSource>(
+            totalHpLoss,
+            new ReadOnlyDictionary<TSource, int>(hpLossBySource));
     }
 
     private sealed class PreviewDefenseState
     {
         private readonly IReadOnlyList<AbstractModel> _listeners;
-        private readonly ValueProp _props;
-        private readonly Creature? _dealer;
-        private readonly CardModel? _cardSource;
         private readonly Dictionary<BufferPower, int> _bufferCharges = new();
         private readonly Dictionary<SlipperyPower, int> _slipperyCharges = new();
         private readonly Dictionary<HardenedShellPower, decimal> _hardenedShellRemaining = new();
@@ -100,15 +146,9 @@ public static class DamageDebuffPreviewCalculator
 
         public PreviewDefenseState(
             IReadOnlyList<AbstractModel> listeners,
-            Creature target,
-            ValueProp props,
-            Creature? dealer,
-            CardModel? cardSource)
+            Creature target)
         {
             _listeners = listeners;
-            _props = props;
-            _dealer = dealer;
-            _cardSource = cardSource;
 
             foreach (AbstractModel listener in listeners)
             {
@@ -121,14 +161,7 @@ public static class DamageDebuffPreviewCalculator
                         _slipperyCharges[slippery] = slippery.Amount;
                         break;
                     case HardenedShellPower shell when shell.Owner == target:
-                        _hardenedShellRemaining[shell] = Math.Max(
-                            0m,
-                            shell.ModifyHpLostBeforeOstyLate(
-                                target,
-                                decimal.MaxValue,
-                                props,
-                                dealer,
-                                cardSource));
+                        _hardenedShellRemaining[shell] = Math.Max(0m, shell.DisplayAmount);
                         break;
                     case BeatingRemnant remnant when remnant.Owner.Creature == target:
                         _beatingRemnantRemaining[remnant] = Math.Max(
@@ -136,24 +169,29 @@ public static class DamageDebuffPreviewCalculator
                             remnant.ModifyHpLostAfterOsty(
                                 target,
                                 decimal.MaxValue,
-                                props,
-                                dealer,
-                                cardSource));
+                                ValueProp.Unpowered,
+                                null,
+                                null));
                         break;
                 }
             }
         }
 
-        public decimal ModifyBeforeOsty(Creature target, decimal amount)
+        public decimal ModifyBeforeOsty(
+            Creature target,
+            decimal amount,
+            ValueProp props,
+            Creature? dealer,
+            CardModel? cardSource)
         {
             foreach (AbstractModel listener in _listeners)
             {
                 amount = listener.ModifyHpLostBeforeOsty(
                     target,
                     amount,
-                    _props,
-                    _dealer,
-                    _cardSource);
+                    props,
+                    dealer,
+                    cardSource);
             }
 
             foreach (AbstractModel listener in _listeners)
@@ -168,15 +206,20 @@ public static class DamageDebuffPreviewCalculator
                 amount = listener.ModifyHpLostBeforeOstyLate(
                     target,
                     amount,
-                    _props,
-                    _dealer,
-                    _cardSource);
+                    props,
+                    dealer,
+                    cardSource);
             }
 
             return amount;
         }
 
-        public decimal ModifyAfterOsty(Creature target, decimal amount)
+        public decimal ModifyAfterOsty(
+            Creature target,
+            decimal amount,
+            ValueProp props,
+            Creature? dealer,
+            CardModel? cardSource)
         {
             foreach (AbstractModel listener in _listeners)
             {
@@ -188,9 +231,9 @@ public static class DamageDebuffPreviewCalculator
                         amount = slippery.ModifyHpLostAfterOsty(
                             target,
                             amount,
-                            _props,
-                            _dealer,
-                            _cardSource);
+                            props,
+                            dealer,
+                            cardSource);
                     }
                     continue;
                 }
@@ -205,9 +248,9 @@ public static class DamageDebuffPreviewCalculator
                 amount = listener.ModifyHpLostAfterOsty(
                     target,
                     amount,
-                    _props,
-                    _dealer,
-                    _cardSource);
+                    props,
+                    dealer,
+                    cardSource);
             }
 
             foreach (AbstractModel listener in _listeners)
@@ -220,9 +263,9 @@ public static class DamageDebuffPreviewCalculator
                         decimal modified = buffer.ModifyHpLostAfterOstyLate(
                             target,
                             amount,
-                            _props,
-                            _dealer,
-                            _cardSource);
+                            props,
+                            dealer,
+                            cardSource);
 
                         if (decimal.Truncate(modified) != decimal.Truncate(amount))
                         {
@@ -237,9 +280,9 @@ public static class DamageDebuffPreviewCalculator
                 amount = listener.ModifyHpLostAfterOstyLate(
                     target,
                     amount,
-                    _props,
-                    _dealer,
-                    _cardSource);
+                    props,
+                    dealer,
+                    cardSource);
             }
 
             return amount;
