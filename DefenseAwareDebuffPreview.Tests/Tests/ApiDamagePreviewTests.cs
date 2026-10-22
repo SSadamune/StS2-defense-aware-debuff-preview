@@ -89,6 +89,7 @@ public sealed class ApiDamagePreviewTests : CombatTestSuite
     public async Task Sources_share_slippery_charges_in_order()
     {
         await Play(await AddToHand<StrikeIronclad>(), EnemyAt(0));
+        await CreatureCmd.GainBlock(Player.Creature, 10m, ValueProp.Unpowered, null);
         await ApplyPower<SlipperyPower>(Player.Creature, 1);
 
         var poison = new object();
@@ -101,12 +102,60 @@ public sealed class ApiDamagePreviewTests : CombatTestSuite
                 new(poison, [5m], ValueProp.Unblockable | ValueProp.Unpowered),
                 new(burning, [5m], ValueProp.Unpowered),
             ],
+            DamagePreviewBlockTiming.AfterAutomaticClear,
             ReferenceEqualityComparer.Instance);
 
         Assert.Equal(6, preview.TotalHpLoss);
         Assert.Equal(1, preview.GetHpLoss(poison));
         Assert.Equal(5, preview.GetHpLoss(burning));
+        Assert.Equal(10, Player.Creature.Block);
         Assert.Equal(1, Player.Creature.GetPower<SlipperyPower>()?.Amount);
+        Assert.Equal(hpBefore, Player.Creature.CurrentHp);
+    }
+
+    [Fact]
+    public async Task Damage_after_automatic_block_clear_ignores_block_that_will_clear()
+    {
+        await Play(await AddToHand<StrikeIronclad>(), EnemyAt(0));
+        await CreatureCmd.GainBlock(Player.Creature, 6m, ValueProp.Unpowered, null);
+
+        int hpBefore = Player.Creature.CurrentHp;
+
+        int currentStatePreview = DamageDebuffPreviewApi.CalculateTotalHpLoss(
+            Player.Creature,
+            [4m],
+            ValueProp.Unpowered);
+        int afterClearPreview = DamageDebuffPreviewApi.CalculateTotalHpLoss(
+            Player.Creature,
+            [4m],
+            ValueProp.Unpowered,
+            DamagePreviewBlockTiming.AfterAutomaticClear);
+
+        Assert.Equal(0, currentStatePreview);
+        Assert.Equal(4, afterClearPreview);
+        Assert.Equal(6, Player.Creature.Block);
+        Assert.Equal(hpBefore, Player.Creature.CurrentHp);
+    }
+
+    [Fact]
+    public async Task Damage_after_automatic_block_clear_retains_block_when_clear_is_prevented()
+    {
+        await Play(await AddToHand<StrikeIronclad>(), EnemyAt(0));
+        await CreatureCmd.GainBlock(Player.Creature, 6m, ValueProp.Unpowered, null);
+        await ApplyPower<BarricadePower>(Player.Creature, 1);
+
+        int hpBefore = Player.Creature.CurrentHp;
+
+        Assert.True(DamageDebuffPreviewApi.TryCalculateTotalHpLoss(
+            Player.Creature,
+            [4m],
+            ValueProp.Unpowered,
+            out int hpLoss,
+            DamagePreviewBlockTiming.AfterAutomaticClear));
+
+        Assert.Equal(0, hpLoss);
+        Assert.Equal(6, Player.Creature.Block);
+        Assert.NotNull(Player.Creature.GetPower<BarricadePower>());
         Assert.Equal(hpBefore, Player.Creature.CurrentHp);
     }
 

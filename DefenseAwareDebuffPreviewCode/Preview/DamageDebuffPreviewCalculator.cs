@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using DefenseAwareDebuffPreview.Api;
 using DefenseAwareDebuffPreview.Compatibility;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Relics;
@@ -25,6 +26,23 @@ public static class DamageDebuffPreviewCalculator
         ValueProp props,
         Creature? dealer = null,
         CardModel? cardSource = null,
+        CardPlay? cardPlay = null) =>
+        CalculateTotalHpLoss(
+            target,
+            baseDamagePerHit,
+            props,
+            DamagePreviewBlockTiming.Current,
+            dealer,
+            cardSource,
+            cardPlay);
+
+    public static int CalculateTotalHpLoss(
+        Creature target,
+        IEnumerable<decimal> baseDamagePerHit,
+        ValueProp props,
+        DamagePreviewBlockTiming blockTiming,
+        Creature? dealer = null,
+        CardModel? cardSource = null,
         CardPlay? cardPlay = null)
     {
         var source = new object();
@@ -37,6 +55,7 @@ public static class DamageDebuffPreviewCalculator
                     dealer,
                     cardSource,
                     cardPlay)],
+                blockTiming,
                 ReferenceEqualityComparer.Instance)
             .TotalHpLoss;
     }
@@ -44,6 +63,7 @@ public static class DamageDebuffPreviewCalculator
     internal static DamagePreviewResult<TSource> CalculateBySourceCore<TSource>(
         Creature target,
         IEnumerable<DamagePreviewSource<TSource>> sources,
+        DamagePreviewBlockTiming blockTiming,
         IEqualityComparer<TSource>? sourceComparer)
         where TSource : notnull
     {
@@ -55,7 +75,8 @@ public static class DamageDebuffPreviewCalculator
         var runState = combatState.RunState;
         var listeners = runState.IterateHookListeners(combatState).ToList();
         var defenses = new PreviewDefenseState(listeners, target);
-        decimal remainingBlock = target.PetOwner?.Creature.Block ?? target.Block;
+        Creature blockOwner = target.PetOwner?.Creature ?? target;
+        decimal remainingBlock = GetInitialBlock(combatState, blockOwner, blockTiming);
         int remainingHp = target.CurrentHp;
         int totalHpLoss = 0;
         var hpLossBySource = new Dictionary<TSource, int>(sourceComparer);
@@ -136,6 +157,23 @@ public static class DamageDebuffPreviewCalculator
             totalHpLoss,
             new ReadOnlyDictionary<TSource, int>(hpLossBySource));
     }
+
+    private static decimal GetInitialBlock(
+        ICombatState combatState,
+        Creature blockOwner,
+        DamagePreviewBlockTiming blockTiming) =>
+        blockTiming switch
+        {
+            DamagePreviewBlockTiming.Current => blockOwner.Block,
+            DamagePreviewBlockTiming.AfterAutomaticClear => Hook.ShouldClearBlock(
+                combatState,
+                blockOwner,
+                out _) ? 0m : blockOwner.Block,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(blockTiming),
+                blockTiming,
+                "Unknown damage preview block timing."),
+        };
 
     private sealed class PreviewDefenseState
     {

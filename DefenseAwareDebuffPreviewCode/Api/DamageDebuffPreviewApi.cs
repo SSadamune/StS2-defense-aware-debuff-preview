@@ -8,6 +8,22 @@ using MegaCrit.Sts2.Core.ValueProps;
 namespace DefenseAwareDebuffPreview.Api;
 
 /// <summary>
+/// Selects which block state is used at the beginning of a damage preview.
+/// </summary>
+public enum DamagePreviewBlockTiming
+{
+    /// <summary>Uses the target's block at the time the preview is calculated.</summary>
+    Current = 0,
+
+    /// <summary>
+    /// Simulates the automatic block-clear step at the start of the target's next
+    /// turn. Block is set to zero when the game's block-clear hooks allow it and
+    /// retained otherwise.
+    /// </summary>
+    AfterAutomaticClear = 1,
+}
+
+/// <summary>
 /// One ordered damage source in a shared debuff preview.
 /// Sources and their hits are simulated in enumeration order.
 /// </summary>
@@ -60,9 +76,26 @@ public static class DamageDebuffPreviewApi
         IEnumerable<DamagePreviewSource<TSource>> sources,
         IEqualityComparer<TSource>? sourceComparer = null)
         where TSource : notnull =>
+        CalculateBySource(
+            target,
+            sources,
+            DamagePreviewBlockTiming.Current,
+            sourceComparer);
+
+    /// <summary>
+    /// Simulates several ordered damage sources against one shared defensive state,
+    /// beginning with the block state selected by <paramref name="blockTiming"/>.
+    /// </summary>
+    public static DamagePreviewResult<TSource> CalculateBySource<TSource>(
+        Creature target,
+        IEnumerable<DamagePreviewSource<TSource>> sources,
+        DamagePreviewBlockTiming blockTiming,
+        IEqualityComparer<TSource>? sourceComparer = null)
+        where TSource : notnull =>
         DamageDebuffPreviewCalculator.CalculateBySourceCore(
             target,
             sources,
+            blockTiming,
             sourceComparer);
 
     /// <summary>
@@ -76,10 +109,28 @@ public static class DamageDebuffPreviewApi
         [NotNullWhen(true)] out DamagePreviewResult<TSource>? result,
         IEqualityComparer<TSource>? sourceComparer = null)
         where TSource : notnull
+        => TryCalculateBySource(
+            target,
+            sources,
+            out result,
+            DamagePreviewBlockTiming.Current,
+            sourceComparer);
+
+    /// <summary>
+    /// Attempts to simulate several ordered damage sources beginning with the block
+    /// state selected by <paramref name="blockTiming"/>.
+    /// </summary>
+    public static bool TryCalculateBySource<TSource>(
+        Creature target,
+        IEnumerable<DamagePreviewSource<TSource>> sources,
+        [NotNullWhen(true)] out DamagePreviewResult<TSource>? result,
+        DamagePreviewBlockTiming blockTiming,
+        IEqualityComparer<TSource>? sourceComparer = null)
+        where TSource : notnull
     {
         try
         {
-            result = CalculateBySource(target, sources, sourceComparer);
+            result = CalculateBySource(target, sources, blockTiming, sourceComparer);
             return true;
         }
         catch (Exception exception)
@@ -102,6 +153,28 @@ public static class DamageDebuffPreviewApi
             target,
             baseDamagePerHit,
             props,
+            DamagePreviewBlockTiming.Current,
+            dealer,
+            cardSource,
+            cardPlay);
+
+    /// <summary>
+    /// Simulates one damage source beginning with the block state selected by
+    /// <paramref name="blockTiming"/> and returns its total HP loss.
+    /// </summary>
+    public static int CalculateTotalHpLoss(
+        Creature target,
+        IEnumerable<decimal> baseDamagePerHit,
+        ValueProp props,
+        DamagePreviewBlockTiming blockTiming,
+        Creature? dealer = null,
+        CardModel? cardSource = null,
+        CardPlay? cardPlay = null) =>
+        DamageDebuffPreviewCalculator.CalculateTotalHpLoss(
+            target,
+            baseDamagePerHit,
+            props,
+            blockTiming,
             dealer,
             cardSource,
             cardPlay);
@@ -119,6 +192,29 @@ public static class DamageDebuffPreviewApi
         Creature? dealer = null,
         CardModel? cardSource = null,
         CardPlay? cardPlay = null)
+        => TryCalculateTotalHpLoss(
+            target,
+            baseDamagePerHit,
+            props,
+            out hpLoss,
+            DamagePreviewBlockTiming.Current,
+            dealer,
+            cardSource,
+            cardPlay);
+
+    /// <summary>
+    /// Attempts to simulate one damage source beginning with the block state selected
+    /// by <paramref name="blockTiming"/>.
+    /// </summary>
+    public static bool TryCalculateTotalHpLoss(
+        Creature target,
+        IEnumerable<decimal> baseDamagePerHit,
+        ValueProp props,
+        out int hpLoss,
+        DamagePreviewBlockTiming blockTiming,
+        Creature? dealer = null,
+        CardModel? cardSource = null,
+        CardPlay? cardPlay = null)
     {
         try
         {
@@ -126,6 +222,7 @@ public static class DamageDebuffPreviewApi
                 target,
                 baseDamagePerHit,
                 props,
+                blockTiming,
                 dealer,
                 cardSource,
                 cardPlay);
