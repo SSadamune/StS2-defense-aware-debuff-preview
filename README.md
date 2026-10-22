@@ -118,6 +118,8 @@ Consumers must declare `DefenseAwareDebuffPreview` version `v0.1.0` or later as 
 
 ## 构建
 
+构建和测试需要 .NET 9 SDK，以及版本兼容的《杀戮尖塔 2》。首次构建还需要能够访问 NuGet.org，或已在本机缓存所需的 NuGet 包。`Godot.NET.Sdk`、`TestTheSpire` 和 xUnit 等编译及测试依赖不直接包含在本仓库中，会由 `dotnet restore` 自动取得，无需另行克隆 TestTheSpire 仓库。因此，在没有网络且没有相应 NuGet 缓存的全新环境中，仅凭本仓库和游戏本体无法构建并运行测试。
+
 模板会从 Steam 标准路径自动寻找游戏。若游戏在其他位置，创建一个不会提交到 Git 的 `LocalSettings.props`：
 
 ```xml
@@ -134,13 +136,15 @@ Consumers must declare `DefenseAwareDebuffPreview` version `v0.1.0` or later as 
 dotnet build DefenseAwareDebuffPreview.csproj -v:minimal
 ```
 
-Windows 上运行针对性战斗测试（脚本会隔离测试用 `APPDATA`，不修改真实游戏设置）：
+Windows 上运行针对性战斗测试（脚本会隔离测试用 `APPDATA`，不修改真实游戏设置或存档）：
 
 ```powershell
 .\tools\Run-Sts2Tests.ps1
 ```
 
 非标准安装路径可传 `-Sts2Path "D:/path/to/Slay the Spire 2"`；使用其他过滤器可传 `-Filter "名称"`。
+
+测试构建会把主模组、测试模组及测试依赖复制到指定游戏安装目录的 `mods` 文件夹，因此运行脚本的用户需要对该目录具有写入权限。
 
 ## 兼容性说明
 
