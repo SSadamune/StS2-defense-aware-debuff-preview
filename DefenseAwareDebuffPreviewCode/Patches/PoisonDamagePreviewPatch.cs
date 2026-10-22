@@ -27,11 +27,11 @@ internal static class PoisonDamagePreviewPatch
                 .Range(0, triggerCount)
                 .Select(index => (decimal)(__instance.Amount - index));
 
-            __result = DamageDebuffPreviewApi.CalculateTotalHpLoss(
+            return !DamageDebuffPreviewApi.TryCalculateTotalHpLoss(
                 __instance.Owner,
                 hits,
-                ValueProp.Unblockable | ValueProp.Unpowered);
-            return false;
+                ValueProp.Unblockable | ValueProp.Unpowered,
+                out __result);
         }
         catch (Exception exception)
         {

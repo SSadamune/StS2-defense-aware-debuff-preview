@@ -4,6 +4,8 @@ using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Models.Characters;
 using MegaCrit.Sts2.Core.Models.Monsters;
 using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.ValueProps;
 using TestTheSpire;
 using Xunit;
@@ -132,5 +134,50 @@ public sealed class ApiDamagePreviewTests : CombatTestSuite
         Assert.Equal(3, preview.GetHpLoss(secondDebuff));
         Assert.Equal(4, preview.GetHpLoss(thirdDebuff));
         Assert.Equal(hpBefore, Player.Creature.CurrentHp);
+    }
+
+    [Fact]
+    public async Task Try_api_contains_preview_failures_without_changing_combat_state()
+    {
+        await Play(await AddToHand<StrikeIronclad>(), EnemyAt(0));
+        await CreatureCmd.GainBlock(Player.Creature, 3m, ValueProp.Unpowered, null);
+        await ApplyPower<BufferPower>(Player.Creature, 1);
+
+        int hpBefore = Player.Creature.CurrentHp;
+
+        bool succeeded = DamageDebuffPreviewApi.TryCalculateTotalHpLoss(
+            Player.Creature,
+            ThrowAfterFirstHit(),
+            ValueProp.Unpowered,
+            out int hpLoss);
+
+        Assert.False(succeeded);
+        Assert.Equal(0, hpLoss);
+        Assert.Equal(3, Player.Creature.Block);
+        Assert.Equal(1, Player.Creature.GetPower<BufferPower>()?.Amount);
+        Assert.Equal(hpBefore, Player.Creature.CurrentHp);
+    }
+
+    [Fact]
+    public async Task Main_assembly_registers_no_content_model_types()
+    {
+        await Play(await AddToHand<StrikeIronclad>(), EnemyAt(0));
+
+        Type[] contentModelTypes = typeof(MainFile)
+            .Assembly
+            .GetTypes()
+            .Where(type => typeof(AbstractModel).IsAssignableFrom(type))
+            .ToArray();
+
+        Assert.Empty(contentModelTypes);
+        Assert.False(ModManager.Mods
+            .Single(mod => mod.manifest?.id == MainFile.ModId)
+            .manifest?.affectsGameplay ?? true);
+    }
+
+    private static IEnumerable<decimal> ThrowAfterFirstHit()
+    {
+        yield return 5m;
+        throw new InvalidOperationException("Intentional preview failure.");
     }
 }

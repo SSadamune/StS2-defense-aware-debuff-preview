@@ -12,6 +12,7 @@
 - 正确考虑伤害上限、无形、缓冲、滑溜、硬化外壳、Beating Remnant 等防御能力。
 - 多段中毒会按实际触发顺序模拟可消耗防御；预览计算不会消耗能力、格挡或生命。
 - 提供稳定的 `DefenseAwareDebuffPreview.Api.DamageDebuffPreviewApi`，其他模组可按来源、按结算顺序共同模拟多种伤害类减益。
+- 纯显示模组，不注册游戏内容模型；多人模式下只有希望看到修正预览的玩家需要安装。
 
 该模组只修正预览，不修改 `CreatureCmd.Damage` 的实际伤害结算。
 
@@ -25,6 +26,7 @@ This is a *Slay the Spire 2* mechanics mod based on [TestTheSpireTemplateRitsu](
 - Accounts for defensive effects such as damage caps, Intangible, Buffer, Slippery, Hardened Shell, and Beating Remnant.
 - Simulates consumable defenses in the correct order for multi-hit Poison without changing powers, block, or HP.
 - Exposes the stable `DefenseAwareDebuffPreview.Api.DamageDebuffPreviewApi`, allowing other mods to simulate multiple ordered damage-dealing debuffs against one shared defensive state.
+- Registers no gameplay content models and is client-side display only; other players in a multiplayer lobby do not need it installed.
 
 This mod only corrects damage previews. It does not change the actual damage resolution performed by `CreatureCmd.Damage`.
 
@@ -35,6 +37,14 @@ Supported game versions: 0.107.1 through 0.111.x. The mod adapts at runtime to t
 `DamageDebuffPreviewApi.CalculateBySource<TSource>` 会按照来源及其内部命中的枚举顺序，使用同一个防御状态快照连续计算，并分别返回每个来源造成的生命损失。不同来源可以使用不同的 `ValueProp`、伤害者和卡牌上下文；计算不会消耗真实格挡、能力、遗物计数或生命。
 
 `DamageDebuffPreviewApi.CalculateBySource<TSource>` simulates sources and their hits in enumeration order against one shared defensive-state snapshot. It returns HP loss attributed to each source, supports distinct `ValueProp` and damage contexts per source, and never mutates real combat state.
+
+UI 集成应优先调用 `TryCalculateBySource` 或 `TryCalculateTotalHpLoss`。它们会捕获预览异常并返回 `false`，调用方此时应保留原版显示。已有的 `CalculateBySource` 和 `CalculateTotalHpLoss` 签名继续保留，以兼容已经编译的调用方。
+
+UI integrations should prefer `TryCalculateBySource` or `TryCalculateTotalHpLoss`. They catch preview exceptions and return `false`, allowing the caller to retain its original display. The existing `CalculateBySource` and `CalculateTotalHpLoss` signatures remain available for binary compatibility.
+
+这些 API 只应用于 UI 绘制或预测阶段。返回值是本地派生显示数据，不得用于写入 `RunState`、卡组、Power、存档或发送网络消息。若调用方根据预览结果改变实际战斗状态，则调用方属于 gameplay 模组，必须将自己的 `affects_gameplay` 设为 `true`。
+
+These APIs are only for UI rendering or forecast evaluation. Their results are local derived display data and must not be used to mutate `RunState`, decks, powers, saves, or send network messages. A consumer that uses preview results to change authoritative combat state is a gameplay mod and must set its own `affects_gameplay` to `true`.
 
 任意数量的 debuff 都可以放进同一次计算。需要分别显示的 debuff 应使用不同的 `TSource` 键，并分别调用 `GetHpLoss`；相同键会被有意合并。API 只负责计算与伤害归属，每个 debuff 仍需通过自己的血条预测接口创建显示分段。所有分段都应调用同一个“收集全部来源”的预测函数，不能各自只计算自身。
 
@@ -103,15 +113,15 @@ int poisonDamage = CalculateTurnStartDamageForecast(poison.Owner)
 
 The real Burning trigger should use the same base damage and `ValueProp.Unpowered`. `BurningPower` uses `burningDamage` for its own health-bar segment, while the Poison preview patch obtains `poisonDamage` from the same coordinator. Neither source should calculate itself in isolation, or shared defenses such as block and Buffer would be reused. Additional damage-dealing debuffs can be inserted at their real trigger positions, using each unique Power instance as its source key.
 
-调用方需要在模组清单中声明对 `DefenseAwareDebuffPreview` `v0.1.0` 或更高版本的依赖，并在编译时引用 `DefenseAwareDebuffPreview.dll`，且不要把该 DLL 重复打包进调用方模组。
+调用方需要在模组清单中声明对 `DefenseAwareDebuffPreview` `v0.1.1` 或更高版本的依赖，并在编译时引用 `DefenseAwareDebuffPreview.dll`，且不要把该 DLL 重复打包进调用方模组。
 
-Consumers must declare `DefenseAwareDebuffPreview` version `v0.1.0` or later as a mod dependency, reference `DefenseAwareDebuffPreview.dll` at compile time, and avoid bundling a duplicate copy of the DLL.
+Consumers must declare `DefenseAwareDebuffPreview` version `v0.1.1` or later as a mod dependency, reference `DefenseAwareDebuffPreview.dll` at compile time, and avoid bundling a duplicate copy of the DLL.
 
 ```json
 "dependencies": [
   {
     "id": "DefenseAwareDebuffPreview",
-    "min_version": "v0.1.0"
+    "min_version": "v0.1.1"
   }
 ]
 ```
