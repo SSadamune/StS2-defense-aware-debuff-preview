@@ -1,9 +1,9 @@
 {
   "id": "DefenseAwareDebuffPreview",
-  "name": "DefenseAwareDebuffPreview",
+  "name": "准确的 DOT 预览 / Accurate DOT Preview",
   "author": "Sadaki",
   "description": "让伤害类减益正确计算目标的防御能力，并显示真实伤害预览。 / Makes damage-dealing debuffs account for defensive effects and display their actual damage.",
-  "version": "v0.1.1",
+  "version": "v0.1.2",
   "min_game_version": "0.107.1",
   "has_pck": false,
   "has_dll": true,

@@ -1,5 +1,6 @@
 using DefenseAwareDebuffPreview.Api;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Models.Characters;
 using MegaCrit.Sts2.Core.Models.Monsters;
@@ -82,6 +83,41 @@ public sealed class ApiDamagePreviewTests : CombatTestSuite
         Assert.Equal(3, preview.GetHpLoss(poison));
         Assert.Equal(1, preview.GetHpLoss(burning));
         Assert.Equal(4, Player.Creature.GetPower<HardenedShellPower>()?.DisplayAmount);
+        Assert.Equal(hpBefore, Player.Creature.CurrentHp);
+    }
+
+    [Fact]
+    public async Task Next_turn_sources_share_one_reset_hardened_shell_cap_in_order()
+    {
+        await Play(await AddToHand<StrikeIronclad>(), EnemyAt(0));
+        await ApplyPower<HardenedShellPower>(Player.Creature, 20);
+        await CreatureCmd.Damage(
+            new ThrowingPlayerChoiceContext(),
+            Player.Creature,
+            15m,
+            ValueProp.Unblockable | ValueProp.Unpowered,
+            null,
+            null);
+
+        var poison = new object();
+        var burning = new object();
+        int hpBefore = Player.Creature.CurrentHp;
+        HardenedShellPower shell = Assert.IsType<HardenedShellPower>(
+            Player.Creature.GetPower<HardenedShellPower>());
+
+        DamagePreviewResult<object> preview = DamageDebuffPreviewApi.CalculateBySource<object>(
+            Player.Creature,
+            [
+                new(poison, [12m], ValueProp.Unblockable | ValueProp.Unpowered),
+                new(burning, [12m], ValueProp.Unpowered),
+            ],
+            DamagePreviewBlockTiming.AfterNextSideTurnStart,
+            ReferenceEqualityComparer.Instance);
+
+        Assert.Equal(20, preview.TotalHpLoss);
+        Assert.Equal(12, preview.GetHpLoss(poison));
+        Assert.Equal(8, preview.GetHpLoss(burning));
+        Assert.Equal(5, shell.DisplayAmount);
         Assert.Equal(hpBefore, Player.Creature.CurrentHp);
     }
 

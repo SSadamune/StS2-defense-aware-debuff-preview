@@ -74,7 +74,10 @@ public static class DamageDebuffPreviewCalculator
             ?? throw new InvalidOperationException("Damage previews require a creature in combat.");
         var runState = combatState.RunState;
         var listeners = runState.IterateHookListeners(combatState).ToList();
-        var defenses = new PreviewDefenseState(listeners, target);
+        var defenses = new PreviewDefenseState(
+            listeners,
+            target,
+            blockTiming == DamagePreviewBlockTiming.AfterNextSideTurnStart);
         Creature blockOwner = target.PetOwner?.Creature ?? target;
         decimal remainingBlock = GetInitialBlock(combatState, blockOwner, blockTiming);
         int remainingHp = target.CurrentHp;
@@ -169,6 +172,10 @@ public static class DamageDebuffPreviewCalculator
                 combatState,
                 blockOwner,
                 out _) ? 0m : blockOwner.Block,
+            DamagePreviewBlockTiming.AfterNextSideTurnStart => Hook.ShouldClearBlock(
+                combatState,
+                blockOwner,
+                out _) ? 0m : blockOwner.Block,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(blockTiming),
                 blockTiming,
@@ -185,7 +192,8 @@ public static class DamageDebuffPreviewCalculator
 
         public PreviewDefenseState(
             IReadOnlyList<AbstractModel> listeners,
-            Creature target)
+            Creature target,
+            bool resetTurnBasedDefenses)
         {
             _listeners = listeners;
 
@@ -200,17 +208,21 @@ public static class DamageDebuffPreviewCalculator
                         _slipperyCharges[slippery] = slippery.Amount;
                         break;
                     case HardenedShellPower shell when shell.Owner == target:
-                        _hardenedShellRemaining[shell] = Math.Max(0m, shell.DisplayAmount);
+                        _hardenedShellRemaining[shell] = Math.Max(
+                            0m,
+                            resetTurnBasedDefenses ? shell.Amount : shell.DisplayAmount);
                         break;
                     case BeatingRemnant remnant when remnant.Owner.Creature == target:
                         _beatingRemnantRemaining[remnant] = Math.Max(
                             0m,
-                            remnant.ModifyHpLostAfterOsty(
-                                target,
-                                decimal.MaxValue,
-                                ValueProp.Unpowered,
-                                null,
-                                null));
+                            resetTurnBasedDefenses
+                                ? remnant.DynamicVars["MaxHpLoss"].BaseValue
+                                : remnant.ModifyHpLostAfterOsty(
+                                    target,
+                                    decimal.MaxValue,
+                                    ValueProp.Unpowered,
+                                    null,
+                                    null));
                         break;
                 }
             }

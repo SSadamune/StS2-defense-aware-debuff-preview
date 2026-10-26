@@ -11,7 +11,7 @@
 - 修复原版中毒生命条预览：预览会经过目标的伤害修改与生命损失修改钩子，而不是只显示中毒基础数值。
 - 正确考虑伤害上限、无形、缓冲、滑溜、硬化外壳、Beating Remnant 等防御能力。
 - 多段中毒会按实际触发顺序模拟可消耗防御；预览计算不会消耗能力、格挡或生命。
-- 可显式预测“目标下回合自动清除格挡之后”的伤害，避免把即将清除的旧格挡计入 DOT 预览。
+- 可显式预测“目标下回合开始效果触发前”的伤害，既不会计入即将清除的旧格挡，也会重置硬化外壳等每回合防御状态。
 - 提供稳定的 `DefenseAwareDebuffPreview.Api.DamageDebuffPreviewApi`，其他模组可按来源、按结算顺序共同模拟多种伤害类减益。
 - 纯显示模组，不注册游戏内容模型；多人模式下只有希望看到修正预览的玩家需要安装。
 
@@ -26,7 +26,7 @@ This is a *Slay the Spire 2* mechanics mod based on [TestTheSpireTemplateRitsu](
 - Fixes the vanilla Poison health-bar preview by running the target's standard damage and HP-loss modification hooks.
 - Accounts for defensive effects such as damage caps, Intangible, Buffer, Slippery, Hardened Shell, and Beating Remnant.
 - Simulates consumable defenses in the correct order for multi-hit Poison without changing powers, block, or HP.
-- Can explicitly forecast damage after the target's next automatic block-clear step, so expiring block is not counted against a later DOT.
+- Can explicitly forecast damage immediately before the target's next start-of-turn effects, after block clear and per-turn defenses such as Hardened Shell have reset.
 - Exposes the stable `DefenseAwareDebuffPreview.Api.DamageDebuffPreviewApi`, allowing other mods to simulate multiple ordered damage-dealing debuffs against one shared defensive state.
 - Registers no gameplay content models and is client-side display only; other players in a multiplayer lobby do not need it installed.
 
@@ -44,9 +44,9 @@ UI 集成应优先调用 `TryCalculateBySource` 或 `TryCalculateTotalHpLoss`。
 
 UI integrations should prefer `TryCalculateBySource` or `TryCalculateTotalHpLoss`. They catch preview exceptions and return `false`, allowing the caller to retain its original display. The existing `CalculateBySource` and `CalculateTotalHpLoss` signatures remain available for binary compatibility.
 
-现有重载默认使用 `DamagePreviewBlockTiming.Current`，即从调用时的真实格挡开始计算。若一批 DOT 在目标下回合的自动格挡清除之后触发，应调用带 `DamagePreviewBlockTiming` 的新重载并传入 `DamagePreviewBlockTiming.AfterAutomaticClear`。该模式会执行游戏的 `Hook.ShouldClearBlock` 判定：通常从 0 格挡开始；Barricade、Blur 等阻止清除的效果存在时则保留格挡。不要把清除前和清除后的来源放入同一批计算。
+现有重载默认使用 `DamagePreviewBlockTiming.Current`，即从调用时的真实防御状态开始计算。若一批 DOT 在目标下回合开始时触发，应传入 `DamagePreviewBlockTiming.AfterNextSideTurnStart`：该模式会执行游戏的 `Hook.ShouldClearBlock` 判定，并把硬化外壳、Beating Remnant 等已知的每回合伤害上限重置后，再让全部来源按枚举顺序共享和消耗该状态。`AfterAutomaticClear` 只预测清格挡，不重置这些每回合防御，保留它是为了兼容已有调用方。不要把不同触发阶段的来源放入同一批计算。
 
-Existing overloads default to `DamagePreviewBlockTiming.Current`, starting from the target's block when the API is called. For a batch of DOTs that triggers after the target's next automatic block-clear step, use the new overload with `DamagePreviewBlockTiming.AfterAutomaticClear`. This mode evaluates the game's `Hook.ShouldClearBlock` predicate: it normally starts from zero block, while effects such as Barricade or Blur retain block. Do not combine sources from opposite sides of the block-clear boundary in one batch.
+Existing overloads default to `DamagePreviewBlockTiming.Current`, starting from the target's current defensive state. For a batch of DOTs that triggers at the start of the target's next turn, pass `DamagePreviewBlockTiming.AfterNextSideTurnStart`. This mode evaluates the game's `Hook.ShouldClearBlock` predicate and resets known per-turn damage caps such as Hardened Shell and Beating Remnant before all ordered sources share and consume that state. `AfterAutomaticClear` only forecasts block clear and remains unchanged for compatibility. Do not combine sources from different trigger phases in one batch.
 
 这些 API 只应用于 UI 绘制或预测阶段。返回值是本地派生显示数据，不得用于写入 `RunState`、卡组、Power、存档或发送网络消息。若调用方根据预览结果改变实际战斗状态，则调用方属于 gameplay 模组，必须将自己的 `affects_gameplay` 设为 `true`。
 
@@ -97,7 +97,7 @@ private static DamagePreviewResult<PowerModel> CalculateTurnStartDamageForecast(
     return DamageDebuffPreviewApi.CalculateBySource<PowerModel>(
         target,
         sources,
-        DamagePreviewBlockTiming.AfterAutomaticClear,
+        DamagePreviewBlockTiming.AfterNextSideTurnStart,
         ReferenceEqualityComparer.Instance);
 }
 
@@ -124,15 +124,15 @@ int poisonDamage = CalculateTurnStartDamageForecast(poison.Owner)
 
 The real Burning trigger should use the same base damage and `ValueProp.Unpowered`. `BurningPower` uses `burningDamage` for its own health-bar segment, while a display-specific Poison integration obtains `poisonDamage` from the same coordinator. Do not globally replace model methods such as `PoisonPower.CalculateTotalDamageNextTurn`; limit integration to health-bar rendering or another explicit forecast path. Neither source should calculate itself in isolation, or shared defenses such as block and Buffer would be reused. Additional damage-dealing debuffs can be inserted at their real trigger positions, using each unique Power instance as its source key.
 
-调用方需要在模组清单中声明对 `DefenseAwareDebuffPreview` `v0.1.1` 或更高版本的依赖，并在编译时引用 `DefenseAwareDebuffPreview.dll`，且不要把该 DLL 重复打包进调用方模组。已有公开签名继续保持二进制兼容。
+使用当前 API 的调用方需要在模组清单中声明对 `DefenseAwareDebuffPreview` `v0.1.2` 或更高版本的依赖，并在编译时引用 `DefenseAwareDebuffPreview.dll`，且不要把该 DLL 重复打包进调用方模组。v0.1.1 已有的公开签名继续保持二进制兼容。
 
-Consumers must declare `DefenseAwareDebuffPreview` version `v0.1.1` or later as a mod dependency, reference `DefenseAwareDebuffPreview.dll` at compile time, and avoid bundling a duplicate copy of the DLL. Existing public signatures remain binary compatible.
+Consumers using the current API must declare `DefenseAwareDebuffPreview` version `v0.1.2` or later as a mod dependency, reference `DefenseAwareDebuffPreview.dll` at compile time, and avoid bundling a duplicate copy of the DLL. Public signatures already present in v0.1.1 remain binary compatible.
 
 ```json
 "dependencies": [
   {
     "id": "DefenseAwareDebuffPreview",
-    "min_version": "v0.1.1"
+    "min_version": "v0.1.2"
   }
 ]
 ```
@@ -171,7 +171,7 @@ Windows 上运行针对性战斗测试（脚本会隔离测试用 `APPDATA`，�
 
 支持的游戏版本为 0.107.1 至 0.111.x。模组会在运行时适配游戏所使用的伤害钩子签名，因此同一个 DLL 可用于上述版本。
 
-通用计算器会自动执行所有标准伤害与生命损失钩子。对原版会在连续命中间消耗或累计状态的防御能力，项目内包含显式的无副作用模拟；第三方模组若实现了带内部状态的自定义防御钩子，可能需要在本项目中增加对应的预览状态适配。`AfterAutomaticClear` 只调用无副作用的 `ShouldClearBlock` 判定；若第三方模组在 `AfterPreventingBlockClear` 中进一步改变保留的格挡量，也需要专门的预览适配。
+通用计算器会自动执行所有标准伤害与生命损失钩子。对原版会在连续命中间消耗或累计状态的防御能力，项目内包含显式的无副作用模拟；第三方模组若实现了带内部状态或回合开始重置行为的自定义防御钩子，可能需要在本项目中增加对应的预览状态适配。预测自动清格挡只调用无副作用的 `ShouldClearBlock` 判定；若第三方模组在 `AfterPreventingBlockClear` 中进一步改变保留的格挡量，也需要专门的预览适配。
 
 ## License
 

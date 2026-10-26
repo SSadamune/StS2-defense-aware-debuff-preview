@@ -10,7 +10,7 @@
         <RestoreSources>$(MSBuildProjectDirectory)/../../TestTheSpire/artifacts/packages;https://api.nuget.org/v3/index.json;$(RestoreSources)</RestoreSources>
         <Sts2MainModId>DefenseAwareDebuffPreview</Sts2MainModId>
         <Sts2DisableOtherMods>true</Sts2DisableOtherMods>
-        <Sts2TestModAuthor>ModTemplate-StS2</Sts2TestModAuthor>
+        <Sts2TestModAuthor>Sadaki</Sts2TestModAuthor>
         <Sts2TestModDescription>Headless combat smoke tests for DefenseAwareDebuffPreview.</Sts2TestModDescription>
         <GodotProjectDir Condition="'$(GodotProjectDir)' == ''">$(MSBuildProjectDirectory)/..</GodotProjectDir>
         <Sts2TestWorkRoot Condition="$([MSBuild]::IsOSPlatform('Windows'))">C:/tmp/sts2-combat-tests/$(AssemblyName)</Sts2TestWorkRoot>

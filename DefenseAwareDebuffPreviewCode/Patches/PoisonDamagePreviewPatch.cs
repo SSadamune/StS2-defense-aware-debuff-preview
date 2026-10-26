@@ -38,7 +38,8 @@ internal static class PoisonDamagePreviewPatch
                 __instance.Owner,
                 hits,
                 ValueProp.Unblockable | ValueProp.Unpowered,
-                out __result);
+                out __result,
+                DamagePreviewBlockTiming.AfterNextSideTurnStart);
         }
         catch (Exception exception)
         {

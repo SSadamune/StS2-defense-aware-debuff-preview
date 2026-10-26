@@ -21,6 +21,13 @@ public enum DamagePreviewBlockTiming
     /// retained otherwise.
     /// </summary>
     AfterAutomaticClear = 1,
+
+    /// <summary>
+    /// Simulates the point immediately before start-of-turn damage effects run on
+    /// the target's next side turn. Automatic block clear is applied, and known
+    /// per-turn defenses such as Hardened Shell and Beating Remnant are reset.
+    /// </summary>
+    AfterNextSideTurnStart = 2,
 }
 
 /// <summary>
